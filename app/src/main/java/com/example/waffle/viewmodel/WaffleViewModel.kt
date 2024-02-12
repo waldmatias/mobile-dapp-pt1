@@ -16,6 +16,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.example.waffle.usecase.WaffleUseCase
+import androidx.lifecycle.MutableLiveData
+import com.solana.Solana
+import com.solana.core.PublicKey
+import com.solana.networking.HttpNetworkingRouter
+import com.solana.networking.RPCEndpoint
+import android.os.Build
+import androidx.annotation.RequiresApi
 
 data class WalletViewState(
     val isLoading: Boolean = false,
@@ -30,14 +38,17 @@ data class WalletViewState(
 class WaffleViewModel @Inject constructor(
     private val walletAdapter: MobileWalletAdapter,
     private val walletConnectionUseCase: WalletConnectionUseCase,
+    private val waffleUseCase: WaffleUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(WalletViewState())
+    private val _solana = MutableLiveData<Solana>()
 
     val viewState: StateFlow<WalletViewState>
         get() = _state
 
     init {
+        _solana.value = Solana(HttpNetworkingRouter(RPCEndpoint.devnetSolana))
         viewModelScope.launch {
             walletConnectionUseCase.walletDetails
                 .collect { walletDetails ->
@@ -104,6 +115,29 @@ class WaffleViewModel @Inject constructor(
     fun disconnect() {
         viewModelScope.launch {
             walletConnectionUseCase.clearConnection()
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun incrementCounter(
+        identityUri: Uri,
+        iconUri: Uri,
+        identityName: String,
+        sender: ActivityResultSender,
+        waffle: String
+    ) {
+        viewModelScope.launch {
+            _solana.value?.let { solana ->
+                waffleUseCase.createWaffle(
+                    identityUri,
+                    iconUri,
+                    identityName,
+                    sender,
+                    PublicKey(_state.value.userAddress),
+                    solana,
+                    waffle
+                )
+            }
         }
     }
 }
